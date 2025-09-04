@@ -1,151 +1,189 @@
+<!-- App.vue - 更新后包含糖度检测器 -->
 <template>
   <div id="app">
     <el-container class="app-container">
-      <!-- 侧边导航栏 -->
-      <el-aside width="220px" class="sidebar">
-        <div class="logo-section">
-          <div class="logo">
-            <el-icon class="logo-icon"><Crop /></el-icon>
-            <span class="logo-text">玉米分拣系统</span>
-          </div>
-          <div class="version">v1.0.0</div>
+      <!-- 顶部导航栏 -->
+      <el-header class="app-header">
+        <div class="header-left">
+          <el-icon class="logo-icon"><Crop /></el-icon>
+          <h1 class="app-title">玉米分拣系统</h1>
         </div>
 
-        <el-menu
-          :default-active="$route.path"
-          class="sidebar-menu"
-          router
-          unique-opened
-          background-color="#2c3e50"
-          text-color="#ecf0f1"
-          active-text-color="#3498db"
-        >
-          <el-menu-item index="/weight/overview" class="menu-item">
-            <el-icon><Monitor /></el-icon>
-            <span>实时监控</span>
-          </el-menu-item>
-
-          <el-menu-item index="/weight/configuration" class="menu-item">
-            <el-icon><Setting /></el-icon>
-            <span>配置管理</span>
-          </el-menu-item>
-
-          <el-menu-item index="/weight/records" class="menu-item">
-            <el-icon><Document /></el-icon>
-            <span>检测记录</span>
-          </el-menu-item>
-
-          <el-divider class="menu-divider" />
-
-          <div class="menu-group-title">系统管理</div>
-
-          <el-menu-item index="/system/health" class="menu-item" disabled>
-            <el-icon><Tools /></el-icon>
-            <span>系统状态</span>
-            <el-tag size="small" class="coming-soon">开发中</el-tag>
-          </el-menu-item>
-
-          <el-menu-item index="/system/logs" class="menu-item" disabled>
-            <el-icon><List /></el-icon>
-            <span>系统日志</span>
-            <el-tag size="small" class="coming-soon">开发中</el-tag>
-          </el-menu-item>
-        </el-menu>
-
-        <!-- 系统状态指示器 -->
-        <div class="system-status">
-          <div class="status-item">
-            <div class="status-dot" :class="{ active: systemOnline }"></div>
-            <span class="status-text">{{ systemOnline ? '系统在线' : '系统离线' }}</span>
-          </div>
-          <div class="status-time">
-            {{ currentTime }}
-          </div>
+        <div class="header-center">
+          <!-- 检测器切换 -->
+          <el-segmented
+            v-model="activeDetector"
+            :options="detectorOptions"
+            @change="onDetectorChange"
+          />
         </div>
-      </el-aside>
 
-      <!-- 主内容区域 -->
-      <el-container class="main-container">
-        <!-- 顶部工具栏 -->
-        <el-header height="60px" class="header">
-          <div class="header-left">
-            <el-breadcrumb separator="/">
-              <el-breadcrumb-item v-for="item in breadcrumbItems" :key="item.path">
-                {{ item.name }}
-              </el-breadcrumb-item>
-            </el-breadcrumb>
+        <div class="header-right">
+          <el-badge :value="unreadNotifications" :hidden="!unreadNotifications">
+            <el-button
+              circle
+              @click="notificationDrawerVisible = true"
+              :type="unreadNotifications > 0 ? 'warning' : 'info'"
+            >
+              <el-icon><Bell /></el-icon>
+            </el-button>
+          </el-badge>
+
+          <el-dropdown @command="handleUserCommand">
+            <el-button circle>
+              <el-icon><User /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="settings">
+                  <el-icon><Setting /></el-icon>
+                  系统设置
+                </el-dropdown-item>
+                <el-dropdown-item command="about">
+                  <el-icon><InfoFilled /></el-icon>
+                  关于系统
+                </el-dropdown-item>
+                <el-dropdown-item divided command="logout">
+                  <el-icon><SwitchButton /></el-icon>
+                  退出登录
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+      </el-header>
+
+      <el-container>
+        <!-- 侧边栏导航 -->
+        <el-aside class="app-aside" :width="asideCollapsed ? '64px' : '220px'">
+          <div class="aside-header">
+            <el-button
+              @click="toggleAside"
+              circle
+              size="small"
+              class="collapse-btn"
+            >
+              <el-icon>
+                <component :is="asideCollapsed ? 'Expand' : 'Fold'" />
+              </el-icon>
+            </el-button>
           </div>
 
-          <div class="header-right">
-            <el-space>
-              <!-- 实时状态指示 -->
-              <el-badge :value="activeConnections" class="connection-badge">
-                <el-button :icon="Connection" circle size="small" />
-              </el-badge>
+          <el-menu
+            :default-active="activeMenu"
+            :collapse="asideCollapsed"
+            :router="true"
+            class="app-menu"
+          >
+            <!-- 重量检测器菜单 -->
+            <el-sub-menu
+              index="weight"
+              v-if="activeDetector === 'weight'"
+            >
+              <template #title>
+                <el-icon><Crop /></el-icon>
+                <span>重量检测</span>
+              </template>
+              <el-menu-item index="/weight/overview">
+                <el-icon><Odometer /></el-icon>
+                <span>实时监控</span>
+              </el-menu-item>
+              <el-menu-item index="/weight/configuration">
+                <el-icon><Setting /></el-icon>
+                <span>配置管理</span>
+              </el-menu-item>
+              <el-menu-item index="/weight/records">
+                <el-icon><Document /></el-icon>
+                <span>检测记录</span>
+              </el-menu-item>
+            </el-sub-menu>
 
-              <!-- 通知中心 -->
-              <el-badge :value="notificationCount" :hidden="notificationCount === 0">
-                <el-button
-                  :icon="Bell"
-                  circle
-                  size="small"
-                  @click="showNotifications"
-                />
-              </el-badge>
+            <!-- 糖度检测器菜单 -->
+            <el-sub-menu
+              index="brix"
+              v-if="activeDetector === 'brix'"
+            >
+              <template #title>
+                <el-icon><Cherry /></el-icon>
+                <span>糖度检测</span>
+              </template>
+              <el-menu-item index="/brix/overview">
+                <el-icon><Odometer /></el-icon>
+                <span>实时监控</span>
+              </el-menu-item>
+              <el-menu-item index="/brix/configuration">
+                <el-icon><Setting /></el-icon>
+                <span>配置管理</span>
+              </el-menu-item>
+              <el-menu-item index="/brix/records">
+                <el-icon><Document /></el-icon>
+                <span>检测记录</span>
+              </el-menu-item>
+              <el-menu-item index="/brix/calibration">
+                <el-icon><Tools /></el-icon>
+                <span>传感器校准</span>
+              </el-menu-item>
+              <el-menu-item index="/brix/alerts">
+                <el-icon><Bell /></el-icon>
+                <span>报警管理</span>
+              </el-menu-item>
+            </el-sub-menu>
+          </el-menu>
+        </el-aside>
 
-              <!-- 全屏切换 -->
-              <el-button
-                :icon="isFullscreen ? OfficeBuilding : FullScreen"
-                circle
-                size="small"
-                @click="toggleFullscreen"
-              />
-
-              <!-- 设置 -->
-              <el-dropdown trigger="click">
-                <el-button :icon="Setting" circle size="small" />
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item @click="openSettings">
-                      <el-icon><Setting /></el-icon>
-                      系统设置
-                    </el-dropdown-item>
-                    <el-dropdown-item @click="showAbout">
-                      <el-icon><InfoFilled /></el-icon>
-                      关于系统
-                    </el-dropdown-item>
-                    <el-dropdown-item divided @click="refreshApp">
-                      <el-icon><Refresh /></el-icon>
-                      刷新应用
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-            </el-space>
-          </div>
-        </el-header>
-
-        <!-- 主要内容区 -->
-        <el-main class="main-content">
+        <!-- 主内容区域 -->
+        <el-main class="app-main">
           <router-view v-slot="{ Component }">
-            <transition name="fade-slide" mode="out-in">
-              <component :is="Component" />
+            <transition name="fade" mode="out-in">
+              <component :is="Component" :key="route.fullPath" />
             </transition>
           </router-view>
         </el-main>
       </el-container>
+
+      <!-- 状态栏 -->
+      <el-footer class="app-footer" height="40px">
+        <div class="footer-content">
+          <div class="system-status">
+            <span class="status-item">
+              <el-icon class="status-icon" :class="{ online: weightSystemOnline }">
+                <Crop />
+              </el-icon>
+              <span>重量检测: {{ weightSystemOnline ? '在线' : '离线' }}</span>
+            </span>
+            <span class="status-item">
+              <el-icon class="status-icon" :class="{ online: brixSystemOnline }">
+                <Cherry />
+              </el-icon>
+              <span>糖度检测: {{ brixSystemOnline ? '在线' : '离线' }}</span>
+            </span>
+          </div>
+          <div class="footer-info">
+            <span>© 2024 工业检测系统 v1.0.0</span>
+          </div>
+        </div>
+      </el-footer>
     </el-container>
 
     <!-- 通知抽屉 -->
     <el-drawer
       v-model="notificationDrawerVisible"
       title="系统通知"
-      direction="rtl"
       size="400px"
+      direction="rtl"
     >
       <div class="notification-list">
-        <el-empty v-if="notifications.length === 0" description="暂无通知" />
-        <div v-else>
+        <div class="notification-header">
+          <el-button
+            size="small"
+            @click="markAllRead"
+            :disabled="unreadNotifications === 0"
+          >
+            全部标记已读
+          </el-button>
+        </div>
+
+        <div class="notifications-content">
           <div
             v-for="notification in notifications"
             :key="notification.id"
@@ -159,6 +197,7 @@
               <span class="notification-time">{{ formatTime(notification.timestamp) }}</span>
             </div>
             <div class="notification-content">{{ notification.message }}</div>
+            <div class="notification-source">{{ notification.source }}</div>
             <div class="notification-actions" v-if="!notification.read">
               <el-button size="small" @click="markAsRead(notification.id)">
                 标记已读
@@ -174,394 +213,353 @@
       <div class="about-content">
         <div class="about-logo">
           <el-icon class="about-icon"><Crop /></el-icon>
-          <h3>重量检测系统</h3>
+          <h3>工业检测系统</h3>
         </div>
         <el-descriptions :column="1" border>
           <el-descriptions-item label="版本">v1.0.0</el-descriptions-item>
           <el-descriptions-item label="构建时间">{{ buildTime }}</el-descriptions-item>
+          <el-descriptions-item label="支持检测器">重量检测、糖度检测</el-descriptions-item>
           <el-descriptions-item label="技术栈">Vue 3 + TypeScript + Element Plus</el-descriptions-item>
-          <el-descriptions-item label="开发者">Weight Detection Team</el-descriptions-item>
+          <el-descriptions-item label="开发者">Detection System Team</el-descriptions-item>
           <el-descriptions-item label="许可证">MIT License</el-descriptions-item>
         </el-descriptions>
         <div class="about-footer">
-          <p>专业的工业级重量检测解决方案</p>
+          <p>专业的工业级多功能检测解决方案</p>
         </div>
       </div>
-      <template #footer>
-        <el-button @click="aboutDialogVisible = false">关闭</el-button>
-        <el-button type="primary" @click="checkUpdate">检查更新</el-button>
-      </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   Crop,
-  Monitor,
-  Setting,
-  Document,
-  Tools,
-  List,
-  Connection,
+  Cherry,
   Bell,
-  FullScreen,
-  OfficeBuilding,
+  User,
+  Setting,
   InfoFilled,
-  Refresh
+  SwitchButton,
+  //Expand,
+  //Fold,
+  Odometer,
+  Document,
+  Tools
 } from '@element-plus/icons-vue'
+import { useWeightStore } from '@/stores/weight'
+import { useBrixStore } from '@/stores/brix'
 import { formatTime } from '@/utils/format'
 
 const route = useRoute()
+const router = useRouter()
+const weightStore = useWeightStore()
+const brixStore = useBrixStore()
 
 // 响应式数据
-const systemOnline = ref(true)
-const currentTime = ref('')
-const activeConnections = ref(3)
-const notificationCount = ref(2)
-const isFullscreen = ref(false)
+const activeDetector = ref('weight')
+const asideCollapsed = ref(false)
 const notificationDrawerVisible = ref(false)
 const aboutDialogVisible = ref(false)
-const buildTime = ref('2024-01-15 10:00:00')
+const buildTime = ref('2024-01-15 10:30:00')
+
+// 检测器选项
+const detectorOptions = [
+  { label: '重量检测', value: 'weight', icon: 'Crop' },
+  { label: '糖度检测', value: 'brix', icon: 'Cherry' }
+]
 
 // 通知数据
 const notifications = ref([
   {
     id: 1,
-    level: 'info',
-    message: '系统已启动，所有检测器正常运行',
+    level: 'warning',
+    message: '糖度传感器校准将于7天后到期',
+    source: '糖度检测系统',
     timestamp: new Date().toISOString(),
     read: false
   },
   {
     id: 2,
-    level: 'warning',
-    message: '检测通道2处理速度较慢，请检查设备状态',
-    timestamp: new Date(Date.now() - 300000).toISOString(),
+    level: 'info',
+    message: '重量检测今日已完成1250次测量',
+    source: '重量检测系统',
+    timestamp: new Date(Date.now() - 3600000).toISOString(),
     read: false
+  },
+  {
+    id: 3,
+    level: 'success',
+    message: '系统备份已成功完成',
+    source: '系统管理',
+    timestamp: new Date(Date.now() - 7200000).toISOString(),
+    read: true
   }
 ])
 
 // 计算属性
-const breadcrumbItems = computed(() => {
-  const routeMap: Record<string, string> = {
-    '/weight/overview': '实时监控',
-    '/weight/configuration': '配置管理',
-    '/weight/records': '检测记录'
-  }
+const activeMenu = computed(() => route.path)
 
-  const items = [{ name: '重量检测', path: '/weight' }]
+const unreadNotifications = computed(() =>
+  notifications.value.filter(n => !n.read).length
+)
 
-  if (routeMap[route.path]) {
-    items.push({ name: routeMap[route.path], path: route.path })
-  }
+const weightSystemOnline = computed(() => weightStore.isSystemOnline)
 
-  return items
-})
-
-// 定时器
-let timeTimer: NodeJS.Timeout | null = null
-let statusTimer: NodeJS.Timeout | null = null
+const brixSystemOnline = computed(() => brixStore.isSystemOnline)
 
 // 方法
-const updateCurrentTime = () => {
-  currentTime.value = new Date().toLocaleString('zh-CN')
-}
-
-const updateSystemStatus = () => {
-  // 模拟系统状态变化
-  systemOnline.value = Math.random() > 0.1 // 90%在线率
-  activeConnections.value = Math.floor(Math.random() * 10) + 1
-}
-
-const getNotificationType = (level: string) => {
-  const typeMap: Record<string, string> = {
-    'info': 'info',
-    'warning': 'warning',
-    'error': 'danger',
-    'success': 'success'
+const onDetectorChange = (detector: string) => {
+  const currentPath = route.path
+  if (detector === 'weight' && !currentPath.startsWith('/weight')) {
+    router.push('/weight/overview')
+  } else if (detector === 'brix' && !currentPath.startsWith('/brix')) {
+    router.push('/brix/overview')
   }
-  return typeMap[level] || 'info'
 }
 
-const showNotifications = () => {
-  notificationDrawerVisible.value = true
+const toggleAside = () => {
+  asideCollapsed.value = !asideCollapsed.value
+}
+
+const handleUserCommand = (command: string) => {
+  switch (command) {
+    case 'settings':
+      ElMessage.info('系统设置功能开发中...')
+      break
+    case 'about':
+      aboutDialogVisible.value = true
+      break
+    case 'logout':
+      ElMessage.info('退出登录功能开发中...')
+      break
+  }
 }
 
 const markAsRead = (notificationId: number) => {
   const notification = notifications.value.find(n => n.id === notificationId)
   if (notification) {
     notification.read = true
-    notificationCount.value = notifications.value.filter(n => !n.read).length
   }
 }
 
-const toggleFullscreen = () => {
-  if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen()
-    isFullscreen.value = true
-  } else {
-    document.exitFullscreen()
-    isFullscreen.value = false
-  }
-}
-
-const openSettings = () => {
-  ElMessage.info('系统设置功能开发中...')
-}
-
-const showAbout = () => {
-  aboutDialogVisible.value = true
-}
-
-const refreshApp = () => {
-  ElMessage.success('应用已刷新')
-  window.location.reload()
-}
-
-const checkUpdate = () => {
-  ElMessage.info('当前已是最新版本')
-}
-
-// 生命周期
-onMounted(() => {
-  updateCurrentTime()
-  updateSystemStatus()
-
-  // 启动定时器
-  timeTimer = setInterval(updateCurrentTime, 1000)
-  statusTimer = setInterval(updateSystemStatus, 30000) // 30秒更新一次状态
-
-  // 监听全屏状态变化
-  document.addEventListener('fullscreenchange', () => {
-    isFullscreen.value = !!document.fullscreenElement
+const markAllRead = () => {
+  notifications.value.forEach(notification => {
+    notification.read = true
   })
-})
+}
 
-onUnmounted(() => {
-  if (timeTimer) clearInterval(timeTimer)
-  if (statusTimer) clearInterval(statusTimer)
+const getNotificationType = (level: string) => {
+  switch (level) {
+    case 'success': return 'success'
+    case 'warning': return 'warning'
+    case 'error': return 'danger'
+    case 'info': return 'info'
+    default: return 'info'
+  }
+}
+
+// 监听路由变化，自动切换检测器
+watch(route, (newRoute) => {
+  if (newRoute.path.startsWith('/weight')) {
+    activeDetector.value = 'weight'
+  } else if (newRoute.path.startsWith('/brix')) {
+    activeDetector.value = 'brix'
+  }
+}, { immediate: true })
+
+// 组件挂载时初始化
+onMounted(() => {
+  // 定期检查系统状态
+  setInterval(async () => {
+    try {
+      await Promise.allSettled([
+        weightStore.fetchStatus(),
+        brixStore.fetchStatus()
+      ])
+    } catch (error) {
+      console.warn('Failed to refresh system status:', error)
+    }
+  }, 30000) // 每30秒检查一次
 })
 </script>
 
 <style scoped>
 #app {
   height: 100vh;
-  font-family: 'Microsoft YaHei', Arial, sans-serif;
+  overflow: hidden;
 }
 
 .app-container {
-  height: 100vh;
+  height: 100%;
 }
 
-/* 侧边栏样式 */
-.sidebar {
-  background: #2c3e50;
-  color: #ecf0f1;
-  display: flex;
-  flex-direction: column;
-}
-
-.logo-section {
-  padding: 20px;
-  text-align: center;
-  border-bottom: 1px solid #34495e;
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 8px;
-}
-
-.logo-icon {
-  font-size: 32px;
-  color: #3498db;
-  margin-right: 10px;
-}
-
-.logo-text {
-  font-size: 20px;
-  font-weight: 700;
-  color: #ecf0f1;
-}
-
-.version {
-  font-size: 12px;
-  color: #95a5a6;
-}
-
-.sidebar-menu {
-  flex: 1;
-  border: none;
-}
-
-.menu-item {
-  margin: 4px 12px;
-  border-radius: 6px;
-  transition: all 0.3s ease;
-}
-
-.menu-item:hover {
-  background: #34495e !important;
-}
-
-.menu-divider {
-  border-color: #34495e;
-  margin: 20px 0;
-}
-
-.menu-group-title {
-  padding: 10px 20px;
-  font-size: 12px;
-  color: #95a5a6;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.coming-soon {
-  margin-left: 10px;
-  background: #e67e22;
-  border: none;
-  color: white;
-}
-
-.system-status {
-  padding: 20px;
-  border-top: 1px solid #34495e;
-  margin-top: auto;
-}
-
-.status-item {
-  display: flex;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #e74c3c;
-  margin-right: 8px;
-  transition: all 0.3s ease;
-}
-
-.status-dot.active {
-  background: #27ae60;
-  box-shadow: 0 0 10px rgba(39, 174, 96, 0.5);
-}
-
-.status-text {
-  font-size: 12px;
-  color: #bdc3c7;
-}
-
-.status-time {
-  font-size: 11px;
-  color: #95a5a6;
-  text-align: center;
-}
-
-/* 主容器样式 */
-.main-container {
-  background: #f8f9fa;
-}
-
-/* 头部样式 */
-.header {
+.app-header {
   background: white;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  border-bottom: 1px solid #e4e7ed;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
-  position: relative;
-  z-index: 100;
 }
 
 .header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-icon {
+  font-size: 32px;
+  color: #409EFF;
+}
+
+.app-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.header-center {
   flex: 1;
+  display: flex;
+  justify-content: center;
 }
 
 .header-right {
   display: flex;
   align-items: center;
+  gap: 12px;
 }
 
-.connection-badge {
-  margin-right: 10px;
+.app-aside {
+  background: #f8f9fa;
+  border-right: 1px solid #e4e7ed;
+  transition: width 0.3s ease;
 }
 
-/* 主内容区样式 */
-.main-content {
+.aside-header {
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 16px;
+  border-bottom: 1px solid #e4e7ed;
+}
+
+.collapse-btn {
+  border: none;
+  background: transparent;
+}
+
+.app-menu {
+  border: none;
+  height: calc(100vh - 130px);
+}
+
+.app-main {
+  background: #f0f2f5;
   padding: 0;
   overflow-y: auto;
 }
 
-/* 过渡动画 */
-.fade-slide-enter-active,
-.fade-slide-leave-active {
-  transition: all 0.3s ease;
+.app-footer {
+  background: white;
+  border-top: 1px solid #e4e7ed;
+  padding: 0 20px;
 }
 
-.fade-slide-enter-from {
-  opacity: 0;
-  transform: translateX(20px);
+.footer-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
 }
 
-.fade-slide-leave-to {
-  opacity: 0;
-  transform: translateX(-20px);
+.system-status {
+  display: flex;
+  gap: 20px;
 }
 
-/* 通知相关样式 */
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #606266;
+}
+
+.status-icon {
+  font-size: 14px;
+  color: #f56c6c;
+}
+
+.status-icon.online {
+  color: #67c23a;
+}
+
+.footer-info {
+  font-size: 12px;
+  color: #909399;
+}
+
 .notification-list {
-  padding: 20px;
-}
-
-.notification-item {
-  padding: 15px;
-  margin-bottom: 15px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border-left: 4px solid #e9ecef;
-  transition: all 0.3s ease;
-}
-
-.notification-item.unread {
-  background: #e3f2fd;
-  border-left-color: #2196f3;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .notification-header {
+  padding: 16px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.notifications-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.notification-item {
+  padding: 16px;
+  border-bottom: 1px solid #f5f7fa;
+}
+
+.notification-item.unread {
+  background: #f0f9ff;
+}
+
+.notification-item .notification-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  padding: 0 0 8px 0;
+  border: none;
 }
 
 .notification-time {
   font-size: 12px;
-  color: #6c757d;
+  color: #909399;
 }
 
 .notification-content {
   font-size: 14px;
-  color: #495057;
-  line-height: 1.5;
-  margin-bottom: 10px;
+  color: #303133;
+  margin-bottom: 4px;
+}
+
+.notification-source {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 8px;
 }
 
 .notification-actions {
   text-align: right;
 }
 
-/* 关于对话框样式 */
 .about-content {
   text-align: center;
 }
@@ -572,129 +570,61 @@ onUnmounted(() => {
 
 .about-icon {
   font-size: 48px;
-  color: #3498db;
+  color: #409EFF;
   margin-bottom: 10px;
 }
 
 .about-footer {
   margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid #eee;
-}
-
-.about-footer p {
-  color: #666;
-  font-style: italic;
-  margin: 0;
-}
-
-/* 面包屑导航样式 */
-:deep(.el-breadcrumb) {
+  color: #909399;
   font-size: 14px;
 }
 
-:deep(.el-breadcrumb__item:last-child .el-breadcrumb__inner) {
-  color: #409eff;
-  font-weight: 600;
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
 }
 
-/* 菜单样式覆盖 */
-:deep(.el-menu-item.is-active) {
-  background: #3498db !important;
-  color: white !important;
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
-:deep(.el-menu-item [class*="el-icon"]) {
-  margin-right: 8px;
+:deep(.el-segmented) {
+  background: #f0f2f5;
 }
 
-/* 抽屉样式覆盖 */
-:deep(.el-drawer__header) {
-  padding: 20px;
-  margin-bottom: 0;
-  border-bottom: 1px solid #eee;
+:deep(.el-menu--collapse) {
+  width: 64px;
 }
 
-:deep(.el-drawer__body) {
-  padding: 0;
+:deep(.el-sub-menu__title) {
+  height: 56px;
 }
 
-/* 响应式设计 */
+:deep(.el-menu-item) {
+  height: 48px;
+}
+
 @media (max-width: 768px) {
-  .sidebar {
-    width: 180px !important;
-  }
-
-  .logo-text {
-    font-size: 16px;
-  }
-
-  .header {
+  .app-header {
     padding: 0 10px;
   }
 
-  .header-left {
+  .header-center {
     display: none;
   }
 
-  .main-content {
-    padding: 0;
-  }
-}
-
-@media (max-width: 480px) {
-  .sidebar {
-    width: 60px !important;
-  }
-
-  .logo-section {
-    padding: 10px;
-  }
-
-  .logo-text {
-    display: none;
-  }
-
-  .menu-group-title {
-    display: none;
-  }
-
-  :deep(.el-menu-item span) {
-    display: none;
+  .app-title {
+    font-size: 16px;
   }
 
   .system-status {
+    gap: 10px;
+  }
+
+  .status-item span {
     display: none;
-  }
-}
-
-/* 滚动条样式 */
-.main-content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.main-content::-webkit-scrollbar-track {
-  background: #f1f1f1;
-}
-
-.main-content::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 3px;
-}
-
-.main-content::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
-
-/* 暗色主题支持（预留） */
-@media (prefers-color-scheme: dark) {
-  .main-container {
-    background: #1a1a1a;
-  }
-
-  .header {
-    background: #2d2d2d;
-    color: #ffffff;
   }
 }
 </style>
